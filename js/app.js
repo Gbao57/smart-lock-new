@@ -1,4 +1,4 @@
-// 1. CẤU HÌNH FIREBASE (THAY apiKey THẬT CỦA PROJECT smart-lock-group3 VÀO ĐÂY)
+// 1. CẤU HÌNH FIREBASE
 const firebaseConfig = {
   apiKey: "AIzaSyCyvtF4NenZrhmU-v0KGegN1yJcL7gad0s",
   authDomain: "smart-lock-group3.firebaseapp.com",
@@ -19,10 +19,10 @@ const SCAN_INTERVAL_MS = 150;
 
 // 3. BIẾN TRẠNG THÁI TOÀN HỆ THỐNG
 let currentUser = null; // { uid, email, name }
-let masterPin = "1234"; // Mã PIN vào nhà dùng chung
+let masterPin = "1234";
 
 let isLocked = true;
-let isESPOnline = true;
+let isESPOnline = false; // Mặc định kiểm tra kết nối thật
 let isBuzzerActive = false;
 
 let autoLockCountdown = 10;
@@ -33,8 +33,8 @@ let isLockedOut = false;
 
 // Biến mô hình Face ID AI
 let isAiModelLoaded = false;
-let faceDescriptorsDB = {}; // { "Tên": Float32Array(128) }
-let ownerFaceName = null;   // Chủ nhà duy nhất
+let faceDescriptorsDB = {};
+let ownerFaceName = null;
 let faceWorkflowMode = "unlock";
 let targetRegisterName = null;
 
@@ -69,12 +69,11 @@ window.addEventListener('load', () => {
 });
 
 // ==========================================
-// 4. QUẢN LÝ PHIÊN ĐĂNG NHẬP VỚI FIREBASE AUTHENTICATION
+// 4. QUẢN LÝ PHIÊN ĐĂNG NHẬP & BỘ PHÂN TÍCH LỖI AUTH (FIX LỖI 400)
 // ==========================================
 function initAuthStateObserver() {
   auth.onAuthStateChanged(async (firebaseUser) => {
     if (firebaseUser) {
-      // Lấy tên hiển thị từ nhánh users/{uid} trên Realtime Database
       let displayName = firebaseUser.displayName || "";
       try {
         const snap = await database.ref('users/' + firebaseUser.uid).once('value');
@@ -84,7 +83,6 @@ function initAuthStateObserver() {
       } catch (e) {}
 
       if (!displayName) {
-        // Nếu tài khoản tạo sẵn trên bảng Authentication (như admin@gmail.com) chưa có tên hiển thị
         displayName = firebaseUser.email.split('@')[0];
         await database.ref('users/' + firebaseUser.uid).set({
           name: displayName,
@@ -138,37 +136,101 @@ function switchAuthTab(tab) {
     loginForm.style.display = 'none';
     registerForm.style.display = 'none';
     forgotForm.style.display = 'flex';
-    // Tự động điền email nếu người dùng đã gõ bên ô đăng nhập
     document.getElementById('forgotEmail').value = document.getElementById('loginEmail').value;
   }
 }
 
-function translateAuthError(error) {
-  switch (error.code) {
-    case 'auth/invalid-email':
-      return "⚠️ Địa chỉ Email không hợp lệ!";
-    case 'auth/user-not-found':
-    case 'auth/wrong-password':
-    case 'auth/invalid-credential':
-    case 'auth/invalid-login-credentials':
-      return "❌ Email hoặc mật khẩu không chính xác!";
-    case 'auth/email-already-in-use':
-      return "⚠️ Email này đã được đăng ký trên Firebase Authentication!";
-    case 'auth/weak-password':
-      return "⚠️ Mật khẩu quá yếu (Cần ít nhất 6 ký tự)!";
-    case 'auth/too-many-requests':
-      return "⛔ Quá nhiều lần thử sai! Vui lòng thử lại sau ít phút.";
-    case 'auth/api-key-not-valid.-please-pass-a-valid-api-key.':
-      return "⚠️ Bạn chưa dán API Key thật của project vào đầu file js/app.js!";
-    default:
-      return "⚠️ Lỗi xác thực: " + (error.message || "Không xác định");
+// Hàm phân tích và bóc tách chuỗi lỗi chi tiết
+function parseAuthErrorMessage(error) {
+  let codeStr = String(error && error.code ? error.code : "");
+  let messageStr = String(error && error.message ? error.message : "");
+
+  // Nếu message chứa chuỗi JSON thô từ Google Identity Toolkit
+  if (messageStr.includes("{") && messageStr.includes("}")) {
+    try {
+      const jsonStart = messageStr.indexOf("{");
+      const jsonEnd = messageStr.lastIndexOf("}") + 1;
+      const parsed = JSON.parse(messageStr.substring(jsonStart, jsonEnd));
+      if (parsed && parsed.error && parsed.error.message) {
+        messageStr += " " + parsed.error.message;
+      }
+    } catch (e) {}
   }
+
+  const combined = (codeStr + " " + messageStr).toUpperCase();
+
+  // Kiểm tra lỗi API Key
+  if (
+    combined.includes("API_KEY_NOT_VALID") ||
+    combined.includes("API-KEY-NOT-VALID") ||
+    combined.includes("INVALID_API_KEY") ||
+    combined.includes("PROJECT_NOT_FOUND")
+  ) {
+    return "LỖI_API_KEY";
+  }
+
+  // Kiểm tra lỗi Gmail không tồn tại
+  if (
+    combined.includes("USER_NOT_FOUND") ||
+    combined.includes("USER-NOT-FOUND") ||
+    combined.includes("EMAIL_NOT_FOUND")
+  ) {
+    return "EMAIL_KHONG_TON_TAI";
+  }
+
+  // Kiểm tra lỗi sai mật khẩu hoặc thông tin đăng nhập không hợp lệ
+  if (
+    combined.includes("WRONG_PASSWORD") ||
+    combined.includes("WRONG-PASSWORD") ||
+    combined.includes("INVALID_LOGIN_CREDENTIALS") ||
+    combined.includes("INVALID-LOGIN-CREDENTIALS") ||
+    combined.includes("INVALID_CREDENTIAL")
+  ) {
+    return "SAI_THONG_TIN";
+  }
+
+  if (combined.includes("INVALID_EMAIL") || combined.includes("INVALID-EMAIL")) {
+    return "EMAIL_KHONG_HOP_LE";
+  }
+  if (combined.includes("EMAIL_ALREADY_IN_USE") || combined.includes("EMAIL-ALREADY-IN-USE")) {
+    return "EMAIL_DA_TON_TAI";
+  }
+  if (combined.includes("WEAK_PASSWORD") || combined.includes("WEAK-PASSWORD")) {
+    return "MAT_KHAU_YEU";
+  }
+  if (combined.includes("TOO_MANY_ATTEMPTS") || combined.includes("TOO-MANY-REQUESTS")) {
+    return "THU_QUA_NHIEU_LAN";
+  }
+
+  return "LỖI_KHAC";
 }
 
-// ĐĂNG NHẬP QUA FIREBASE AUTHENTICATION
+async function checkEmailExists(email) {
+  try {
+    const list = await auth.fetchSignInMethodsForEmail(email);
+    if (list && list.length > 0) return true;
+  } catch (e) {}
+
+  try {
+    const snap = await database.ref('users').once('value');
+    if (snap.exists()) {
+      let found = false;
+      snap.forEach(c => {
+        const u = c.val();
+        if (u && String(u.email || "").toLowerCase() === email.toLowerCase()) {
+          found = true;
+        }
+      });
+      if (found) return true;
+    }
+  } catch (e) {}
+
+  return false;
+}
+
 async function handleLogin(e) {
   e.preventDefault();
-  const email = document.getElementById('loginEmail').value.trim();
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
   const pass = document.getElementById('loginPassword').value.trim();
   const errEl = document.getElementById('loginError');
   const btn = document.getElementById('btnLoginSubmit');
@@ -180,19 +242,44 @@ async function handleLogin(e) {
     const cred = await auth.signInWithEmailAndPassword(email, pass);
     const snap = await database.ref('users/' + cred.user.uid).once('value');
     const uName = (snap.exists() && snap.val().name) ? snap.val().name : email;
-    addLogToFirebase(`👤 Đăng nhập thành công qua Firebase Auth`, uName);
+
+    await database.ref('users/' + cred.user.uid).update({
+      name: uName,
+      email: email
+    });
+
+    addLogToFirebase(`👤 Đăng nhập vào ứng dụng`, uName);
   } catch (err) {
-    errEl.innerText = translateAuthError(err);
+    const errType = parseAuthErrorMessage(err);
+
+    if (errType === "LỖI_API_KEY") {
+      errEl.innerText = "🔑 Lỗi API Key: Mã apiKey trong file js/app.js không chính xác hoặc chưa bật Identity Toolkit!";
+    } else if (errType === "EMAIL_KHONG_TON_TAI") {
+      errEl.innerText = "📭 Gmail này không tồn tại trong hệ thống! Vui lòng bấm Đăng ký.";
+    } else if (errType === "SAI_THONG_TIN") {
+      // Trường hợp Firebase gộp lỗi (Enumeration Protection), kiểm tra thực tế
+      const exists = await checkEmailExists(email);
+      if (!exists) {
+        errEl.innerText = "📭 Gmail này không tồn tại trong hệ thống! Vui lòng bấm Đăng ký.";
+      } else {
+        errEl.innerText = "❌ Tên tài khoản hoặc mật khẩu chưa chính xác!";
+      }
+    } else if (errType === "EMAIL_KHONG_HOP_LE") {
+      errEl.innerText = "⚠️ Định dạng Email không hợp lệ!";
+    } else if (errType === "THU_QUA_NHIEU_LAN") {
+      errEl.innerText = "⛔ Nhập sai quá nhiều lần! Vui lòng thử lại sau ít phút.";
+    } else {
+      errEl.innerText = "⚠️ Lỗi xác thực: " + (err.message || "Không thể đăng nhập.");
+    }
   } finally {
     btn.disabled = false;
   }
 }
 
-// ĐĂNG KÝ TÀI KHOẢN MỚI LÊN FIREBASE AUTHENTICATION + LƯU HỒ SƠ VÀO DATABASE
 async function handleRegister(e) {
   e.preventDefault();
   const name = document.getElementById('regFullName').value.trim();
-  const email = document.getElementById('regEmail').value.trim();
+  const email = document.getElementById('regEmail').value.trim().toLowerCase();
   const pass = document.getElementById('regPassword').value.trim();
   const errEl = document.getElementById('registerError');
   const btn = document.getElementById('btnRegisterSubmit');
@@ -205,11 +292,9 @@ async function handleRegister(e) {
 
   btn.disabled = true;
   try {
-    // 1. Tạo tài khoản trực tiếp trên bảng Firebase Authentication
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     await cred.user.updateProfile({ displayName: name });
 
-    // 2. Lưu thông tin Họ tên (không lưu mật khẩu) vào nhánh users/{uid}
     await database.ref('users/' + cred.user.uid).set({
       name: name,
       email: email,
@@ -218,16 +303,22 @@ async function handleRegister(e) {
 
     addLogToFirebase(`🆕 Đăng ký tài khoản mới (${email})`, name);
   } catch (err) {
-    errEl.innerText = translateAuthError(err);
+    const errType = parseAuthErrorMessage(err);
+    if (errType === "LỖI_API_KEY") {
+      errEl.innerText = "🔑 Lỗi API Key: Mã apiKey trong file js/app.js không chính xác!";
+    } else if (errType === "EMAIL_DA_TON_TAI") {
+      errEl.innerText = "⚠️ Gmail này đã được đăng ký trước đó!";
+    } else {
+      errEl.innerText = "⚠️ Lỗi đăng ký: " + (err.message || "");
+    }
   } finally {
     btn.disabled = false;
   }
 }
 
-// QUÊN MẬT KHẨU - GỬI EMAIL KHÔI PHỤC TỰ ĐỘNG QUA FIREBASE AUTH
 async function handleForgotPassword(e) {
   e.preventDefault();
-  const email = document.getElementById('forgotEmail').value.trim();
+  const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
   const msgEl = document.getElementById('forgotMsg');
   const btn = document.getElementById('btnForgotSubmit');
 
@@ -235,13 +326,26 @@ async function handleForgotPassword(e) {
   btn.disabled = true;
 
   try {
+    const exists = await checkEmailExists(email);
+    if (!exists) {
+      msgEl.className = "auth-msg error";
+      msgEl.innerText = "📭 Gmail này không tồn tại trong hệ thống!";
+      btn.disabled = false;
+      return;
+    }
+
     await auth.sendPasswordResetEmail(email);
     msgEl.className = "auth-msg success";
-    msgEl.innerText = `✅ Đã gửi link đặt lại mật khẩu tới ${email}! Hãy kiểm tra Hộp thư đến hoặc mục Thư rác (Spam).`;
-    addLogToFirebase(`📧 Yêu cầu gửi Email đặt lại mật khẩu`, email);
+    msgEl.innerText = `✅ Đã gửi link đặt lại mật khẩu tới ${email}! Hãy kiểm tra Hộp thư đến hoặc mục Spam.`;
+    addLogToFirebase(`📧 Yêu cầu đặt lại mật khẩu`, email);
   } catch (err) {
     msgEl.className = "auth-msg error";
-    msgEl.innerText = translateAuthError(err);
+    const errType = parseAuthErrorMessage(err);
+    if (errType === "LỖI_API_KEY") {
+      msgEl.innerText = "🔑 Lỗi API Key: Mã apiKey trong file js/app.js không chính xác!";
+    } else {
+      msgEl.innerText = "⚠️ Không thể gửi mail: " + (err.message || "");
+    }
   } finally {
     btn.disabled = false;
   }
@@ -286,7 +390,7 @@ function updateOwnerUI() {
 }
 
 // ==========================================
-// 5. TẢI MÔ HÌNH AI NHẬN DIỆN KHUÔN MẶT (@vladmandic/face-api)
+// 5. TẢI MÔ HÌNH AI NHẬN DIỆN KHUÔN MẶT
 // ==========================================
 async function loadFaceApiModels() {
   const statusEl = document.getElementById('aiStatusText');
@@ -305,16 +409,15 @@ async function loadFaceApiModels() {
     isAiModelLoaded = true;
     if (statusEl) statusEl.innerText = "AI Face ID: Sẵn sàng (Threshold 0.38)";
   } catch (err) {
-    console.warn("Lỗi tải AI Models:", err);
     if (statusEl) statusEl.innerText = "AI Face ID: Chế độ dự phòng";
   }
 }
 
 // ==========================================
-// 6. ĐỒNG BỘ DỮ LIỆU REALTIME VỚI FIREBASE
+// 6. ĐỒNG BỘ DỮ LIỆU REALTIME, TRẠNG THÁI ESP & CẢM BIẾN VÂN TAY
 // ==========================================
 function initFirebaseListeners() {
-  // A. Mã PIN nhà chung (settings/pin)
+  // A. Mã PIN nhà chung
   database.ref('settings/pin').on('value', (snap) => {
     if (!snap.exists()) {
       database.ref('settings/pin').set("1234");
@@ -324,13 +427,13 @@ function initFirebaseListeners() {
     }
   });
 
-  // B. Tên Chủ nhà duy nhất (settings/ownerFaceName)
+  // B. Chủ nhà duy nhất
   database.ref('settings/ownerFaceName').on('value', (snap) => {
     ownerFaceName = snap.exists() ? snap.val() : null;
     updateOwnerUI();
   });
 
-  // C. Cơ sở dữ liệu Vector Khuôn mặt 128 chiều (nhánh 'faces')
+  // C. Dữ liệu Face ID
   database.ref('faces').on('value', (snap) => {
     faceDescriptorsDB = {};
     if (snap.exists()) {
@@ -345,7 +448,7 @@ function initFirebaseListeners() {
     renderRegisteredFacesUI();
   });
 
-  // D. Trạng thái đóng/mở khóa (device/isLocked)
+  // D. Trạng thái khóa cửa (isLocked)
   database.ref('device/isLocked').on('value', (snap) => {
     const val = snap.val();
     if (val === null) {
@@ -360,18 +463,48 @@ function initFirebaseListeners() {
     }
   });
 
-  // E. Trạng thái mạch ESP8266/ESP32 (device/online)
+  // E. Kiểm tra trực tuyến/ngoại tuyến thực tế của ESP qua Heartbeat
+  let lastHeartbeatTime = 0;
+  database.ref('device/heartbeat').on('value', (snap) => {
+    lastHeartbeatTime = snap.val() || 0;
+  });
+
   database.ref('device/online').on('value', (snap) => {
-    const val = snap.val();
-    if (val === null) {
-      database.ref('device/online').set(true);
-      return;
-    }
+    const val = snap.val() || false;
     isESPOnline = val;
     setESPStatusUI(isESPOnline);
   });
 
-  // F. Trạng thái còi báo động (device/alarm/active)
+  // Giám sát tự động ngắt kết nối sau 7 giây không nhận tín hiệu từ ESP
+  setInterval(() => {
+    if (lastHeartbeatTime > 0 && (Date.now() - lastHeartbeatTime > 7000)) {
+      if (isESPOnline) {
+        isESPOnline = false;
+        database.ref('device/online').set(false);
+        setESPStatusUI(false);
+      }
+    }
+  }, 3000);
+
+  // F. Lắng nghe cảm biến vân tay từ ESP (Mục 2)
+  let initialFingerprintLoaded = false;
+  database.ref('device/fingerprint').on('value', (snap) => {
+    if (!initialFingerprintLoaded) {
+      initialFingerprintLoaded = true;
+      return;
+    }
+    if (snap.exists()) {
+      const data = snap.val();
+      if (data && data.status === "success") {
+        const userName = data.user || `Vân tay ID #${data.id || '1'}`;
+        addLogToFirebase(`👆 Mở cửa thành công bằng Cảm biến vân tay`, userName);
+      } else if (data && data.status === "failed") {
+        addLogToFirebase(`⚠️ Quét vân tay không hợp lệ tại cửa`, "Cảm biến vân tay");
+      }
+    }
+  });
+
+  // G. Còi báo động
   database.ref('device/alarm/active').on('value', (snap) => {
     const active = snap.val() || false;
     isBuzzerActive = active;
@@ -379,7 +512,7 @@ function initFirebaseListeners() {
     document.getElementById('securityAlertModal').style.display = active ? 'flex' : 'none';
   });
 
-  // G. Nhật ký hoạt động Realtime (nhánh 'logs')
+  // H. Nhật ký hoạt động Realtime
   database.ref('logs').limitToLast(40).on('value', (snap) => {
     const logList = document.getElementById('logList');
     if (!logList) return;
@@ -405,7 +538,7 @@ function initFirebaseListeners() {
 }
 
 // ==========================================
-// 7. QUẢN LÝ & QUÉT KHUÔN MẶT (CHỦ NHÀ DUY NHẤT DUYỆT)
+// 7. QUẢN LÝ & QUÉT KHUÔN MẶT
 // ==========================================
 function encodeFirebaseKey(str) {
   return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -503,7 +636,7 @@ function startResetFacesWithOwnerVerify() {
 
 function triggerFaceIDUnlock() {
   if (!isESPOnline) {
-    alert("⚠️ Thiết bị ESP đang Ngoại tuyến!");
+    alert("⛔ Thiết bị ESP đang NGOẠI TUYẾN! Không thể thực hiện lệnh mở khóa.");
     return;
   }
   if (!isLocked) {
@@ -786,7 +919,7 @@ async function handleFaceScanSuccess(personName, descriptor) {
 }
 
 // ==========================================
-// 9. ĐỔI MÃ PIN NHÀ CHUNG & ĐIỀU KHIỂN KHÓA CỬA
+// 9. ĐỔI MÃ PIN & ĐIỀU KHIỂN KHÓA CỬA (RÀNG BUỘC TRỰC TUYẾN)
 // ==========================================
 function closeChangePinModal() {
   document.getElementById('changePinModal').style.display = 'none';
@@ -816,6 +949,10 @@ function submitNewMasterPin() {
 
 function handleLockToggle() {
   if (!currentUser) return;
+  if (!isESPOnline) {
+    alert("⛔ Thiết bị ESP đang NGOẠI TUYẾN! Không thể gửi lệnh điều khiển.");
+    return;
+  }
   if (isLocked) {
     alert("⚠️ Vui lòng chọn 'Mở bằng Mã PIN' hoặc 'Quét Face ID Mở Cửa'!");
     return;
@@ -868,7 +1005,7 @@ function updateCountdownUI() {
 function openPinModal() {
   if (!currentUser) return;
   if (!isESPOnline) {
-    alert("⚠️ Thiết bị ESP đang Ngoại tuyến!");
+    alert("⛔ Thiết bị ESP đang NGOẠI TUYẾN! Không thể mở cửa bằng mã PIN lúc này.");
     return;
   }
   if (!isLocked) {
