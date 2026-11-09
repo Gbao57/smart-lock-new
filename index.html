@@ -3,24 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Smart Lock App - Quản Lý Khóa Thông Minh</title>
-  <!-- Font Awesome & Google Fonts -->
+  <title>Smart Lock Group 3 - Quản Lý Khóa Thông Minh</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
-  <!-- CSS -->
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
 
   <!-- ==========================================
-       MÀN HÌNH 1: ĐĂNG NHẬP / ĐĂNG KÝ / QUÊN MẬT KHẨU (FIREBASE AUTH)
+       MÀN HÌNH 1: ĐĂNG NHẬP / ĐĂNG KÝ
   =========================================== -->
   <div id="authContainer" class="app-container">
     <div class="panel-card auth-card">
       <div class="auth-header">
         <div class="auth-logo"><i class="fa-solid fa-shield-halved"></i></div>
         <h2>Smart Lock Home</h2>
-        <p>Xác thực bảo mật qua Firebase Authentication</p>
+        <p>Hệ thống khóa thông minh đa tầng IoT & AI</p>
       </div>
 
       <div id="authTabs" class="auth-tabs">
@@ -28,7 +26,6 @@
         <button id="tabRegisterBtn" class="auth-tab" onclick="switchAuthTab('register')">Đăng ký</button>
       </div>
 
-      <!-- 1. FORM ĐĂNG NHẬP -->
       <form id="loginForm" class="auth-form" onsubmit="handleLogin(event)">
         <div class="form-group">
           <label><i class="fa-solid fa-envelope"></i> Email đăng nhập</label>
@@ -38,22 +35,19 @@
           <label><i class="fa-solid fa-lock"></i> Mật khẩu</label>
           <input type="password" id="loginPassword" placeholder="Nhập mật khẩu" required />
         </div>
-        
         <div class="forgot-link-row">
           <span onclick="switchAuthTab('forgot')"><i class="fa-solid fa-circle-question"></i> Quên mật khẩu?</span>
         </div>
-
         <div id="loginError" class="auth-msg error"></div>
         <button type="submit" id="btnLoginSubmit" class="btn-auth-submit">
           <i class="fa-solid fa-right-to-bracket"></i> ĐĂNG NHẬP VÀO APP
         </button>
       </form>
 
-      <!-- 2. FORM ĐĂNG KÝ (TỰ ĐỘNG LƯU VÀO FIREBASE AUTHENTICATION) -->
       <form id="registerForm" class="auth-form" style="display: none;" onsubmit="handleRegister(event)">
         <div class="form-group">
           <label><i class="fa-solid fa-id-card"></i> Họ và tên hiển thị</label>
-          <input type="text" id="regFullName" placeholder="VD: Nguyễn Văn A" required />
+          <input type="text" id="regFullName" placeholder="VD: Hồ Gia Bảo" required />
         </div>
         <div class="form-group">
           <label><i class="fa-solid fa-envelope"></i> Email đăng ký</label>
@@ -69,14 +63,11 @@
         </button>
       </form>
 
-      <!-- 3. FORM QUÊN MẬT KHẨU (GỬI EMAIL RESET PASSWORD TỪ FIREBASE) -->
       <form id="forgotForm" class="auth-form" style="display: none;" onsubmit="handleForgotPassword(event)">
-        <div class="forgot-banner">
-          Nhập địa chỉ Email tài khoản của bạn. Hệ thống Google Firebase sẽ gửi đường link đặt lại mật khẩu mới trực tiếp vào hộp thư Email.
-        </div>
+        <div class="forgot-banner">Nhập Email để nhận link đặt lại mật khẩu từ Firebase.</div>
         <div class="form-group">
           <label><i class="fa-solid fa-envelope-open-text"></i> Email khôi phục</label>
-          <input type="email" id="forgotEmail" placeholder="Nhập email đã đăng ký..." required />
+          <input type="email" id="forgotEmail" placeholder="Nhập email..." required />
         </div>
         <div id="forgotMsg" class="auth-msg"></div>
         <button type="submit" id="btnForgotSubmit" class="btn-auth-submit">
@@ -90,260 +81,257 @@
   </div>
 
   <!-- ==========================================
-       MÀN HÌNH 2: BẢNG ĐIỀU KHIỂN CHÍNH (APP THỰC TẾ)
+       MÀN HÌNH 2: BẢNG ĐIỀU KHIỂN CHÍNH (3 TAB)
   =========================================== -->
   <div id="appContainer" class="app-container" style="display: none;">
     <div class="panel-card">
-      <!-- Header -->
       <div class="panel-header">
         <div class="brand-title">
-          <i class="fa-solid fa-house-lock"></i>
+          <i class="fa-solid fa-shield-halved" style="font-size:22px; color:var(--primary);"></i>
           <div>
-            <div>Smart Lock Home</div>
-            <small id="aiStatusText">AI Face ID: Đang tải mô hình...</small>
+            <div style="font-weight:700;">SMART LOCK GROUP 3</div>
+            <small id="subHeaderInfo">Hệ thống giám sát & Điều khiển Cloud</small>
           </div>
         </div>
-        <div id="esp32Badge" class="esp-status online">
+        <div id="esp32Badge" class="esp-status offline">
           <span class="dot"></span>
-          <span id="esp32Text">ESP: Trực tuyến</span>
+          <span id="esp32Text">ESP: Ngoại tuyến</span>
         </div>
       </div>
 
-      <!-- Thông tin tài khoản đang đăng nhập -->
-      <div class="user-profile-box">
-        <div class="user-info">
-          <div class="user-avatar"><i class="fa-solid fa-user-shield"></i></div>
-          <div>
-            <div class="user-name-row">
-              <span id="loggedInUserName" class="user-name-text">...</span>
-              <span id="ownerRoleTag" class="role-badge">Thành viên</span>
+      <!-- Cụm điều hướng 3 Tab: Điều khiển - Vân tay - Thành viên -->
+      <div class="main-nav-tabs">
+        <button class="nav-tab-btn active" onclick="switchAppTab('control')">Điều khiển</button>
+        <button class="nav-tab-btn" onclick="switchAppTab('fingerprint')">Vân tay</button>
+        <button class="nav-tab-btn" onclick="switchAppTab('members')">Thành viên</button>
+      </div>
+
+      <!-- ================= TAB 1: ĐIỀU KHIỂN ================= -->
+      <div id="tabContentControl" class="tab-content-section">
+        <div class="user-profile-box">
+          <div class="user-info">
+            <div class="user-avatar"><i class="fa-solid fa-user-shield"></i></div>
+            <div>
+              <div class="user-name-row">
+                <span id="loggedInUserName" class="user-name-text">...</span>
+                <span id="ownerRoleTag" class="role-badge">Thành viên</span>
+              </div>
+              <small id="loggedInUserEmail">...</small>
             </div>
-            <small id="loggedInUserEmail">...</small>
+          </div>
+          <button class="btn-small-action logout" onclick="handleLogout()">
+            <i class="fa-solid fa-right-from-bracket"></i> Thoát
+          </button>
+        </div>
+
+        <div class="hw-indicators">
+          <div class="indicator-item">
+            <span>Khóa:</span>
+            <span id="relayLed" class="ind-led locked">ĐANG KHÓA</span>
+          </div>
+          <div class="indicator-item">
+            <span>Còi:</span>
+            <span id="buzzerStatusBadge" class="buzzer-badge quiet"><i class="fa-solid fa-volume-xmark"></i> Tắt</span>
+          </div>
+          <div class="indicator-item">
+            <span>Nguồn:</span>
+            <span style="background: rgba(22, 163, 74, 0.2); border: 1px solid #16a34a; padding: 2px 7px; border-radius: 6px; font-size: 11px; color: #4ade80;">
+              <i class="fa-solid fa-plug"></i> 100% (Giả lập)
+            </span>
           </div>
         </div>
-        <button class="btn-small-action logout" onclick="handleLogout()">
-          <i class="fa-solid fa-right-from-bracket"></i> Thoát
-        </button>
-      </div>
 
-      <!-- Trạng thái thiết bị thực tế (Relay & Còi) -->
-      <div class="hw-indicators">
-        <div class="indicator-item">
-          <span>Chốt khóa:</span>
-          <span id="relayLed" class="ind-led locked">ĐANG KHÓA</span>
+        <div class="canvas-wrapper">
+          <canvas id="doorCanvas"></canvas>
+          <div id="doorStateTag" class="state-tag locked">CỬA ĐANG KHÓA</div>
         </div>
-        <div class="indicator-item">
-          <span>Còi báo động:</span>
-          <span id="buzzerStatusBadge" class="buzzer-badge quiet">
-            <i class="fa-solid fa-volume-xmark"></i> Tắt
-          </span>
-        </div>
-      </div>
 
-      <!-- MÔ HÌNH CÁNH CỬA 3D (THREE.JS) -->
-      <div class="canvas-wrapper">
-        <canvas id="doorCanvas"></canvas>
-        <div id="doorStateTag" class="state-tag locked">CỬA ĐANG KHÓA</div>
-      </div>
-
-      <!-- Cụm nút mở/khóa cửa & Quản lý Face ID + PIN nhà chung -->
-      <div class="control-actions">
-        <button id="lockBtn" class="btn-lock locked" onclick="handleLockToggle()">
-          <i id="lockIcon" class="fa-solid fa-lock"></i>
-          <span id="lockBtnText">CỬA ĐANG KHÓA (CHỌN PHƯƠNG THỨC MỞ)</span>
-        </button>
-
-        <div class="quick-actions">
-          <button class="action-btn-primary" onclick="openPinModal()">
-            <i class="fa-solid fa-key"></i>
-            <span>1. Mở bằng Mã PIN</span>
+        <div class="control-actions">
+          <button id="lockBtn" class="btn-lock locked" onclick="handleLockToggle()">
+            <i id="lockIcon" class="fa-solid fa-lock"></i>
+            <span id="lockBtnText">CỬA ĐANG KHÓA (CHỌN PHƯƠNG THỨC MỞ)</span>
           </button>
-          <button class="action-btn-primary face-btn" onclick="triggerFaceIDUnlock()">
-            <i class="fa-solid fa-camera"></i>
-            <span>2. Quét Face ID Mở Cửa</span>
-          </button>
+
+          <div class="quick-actions">
+            <button class="action-btn-primary" onclick="openPinModal()">
+              <i class="fa-solid fa-key"></i>
+              <span>1. Mở bằng Mã PIN</span>
+            </button>
+            <button class="action-btn-primary face-btn" onclick="triggerFaceIDUnlock()">
+              <i class="fa-solid fa-camera"></i>
+              <span>2. Quét Face ID Mở Cửa</span>
+            </button>
+          </div>
         </div>
 
-        <div class="admin-actions">
-          <button class="btn-admin good" onclick="openFaceManagerModal()">
-            <i class="fa-solid fa-id-card-clip"></i> Quản lý & Thêm Khuôn Mặt
-          </button>
-          <button class="btn-admin" onclick="requestChangeMasterPin()">
-            <i class="fa-solid fa-sliders"></i> Đổi PIN Nhà Chung
+        <div class="log-container">
+          <div class="log-header">
+            <span><i class="fa-solid fa-clock-rotate-left"></i> Nhật ký hoạt động Realtime</span>
+            <small onclick="clearLogs()">Xóa hiển thị</small>
+          </div>
+          <div id="logList" class="log-list"></div>
+        </div>
+      </div>
+
+      <!-- ================= TAB 2: QUẢN LÝ VÂN TAY ================= -->
+      <div id="tabContentFingerprint" class="tab-content-section" style="display: none;">
+        <div class="feature-card">
+          <div class="card-title"><i class="fa-solid fa-fingerprint"></i> Danh sách Vân tay thành viên</div>
+          <p class="card-desc">Cảm biến lưu mẫu vân tay ở phần cứng (ID 1-127). Tại đây bạn gán tên thành viên vào ID để khi mở cửa trực tiếp, hệ thống hiển thị chính xác tên người mở.</p>
+          <div id="fingerprintList" class="data-list-scroll"></div>
+        </div>
+
+        <div class="feature-card">
+          <div class="card-title"><i class="fa-solid fa-user-tag"></i> Gán Thành viên vào ID Vân tay</div>
+          <div class="form-group">
+            <label>ID Vân tay (1 - 127):</label>
+            <input type="number" id="fpSlotId" min="1" max="127" placeholder="VD: 1" />
+          </div>
+          <div class="form-group" style="margin-top: 6px;">
+            <label>Họ tên thành viên sở hữu:</label>
+            <input type="text" id="fpMemberName" placeholder="VD: Hồ Gia Bảo" />
+          </div>
+          <button class="btn-auth-submit" style="margin-top: 10px;" onclick="saveFingerprintMemberMap()">
+            <i class="fa-solid fa-floppy-disk"></i> LƯU THÔNG TIN VÂN TAY
           </button>
         </div>
       </div>
 
-      <!-- Nhật ký hoạt động Realtime -->
-      <div class="log-container">
-        <div class="log-header">
-          <span><i class="fa-solid fa-clock-rotate-left"></i> Nhật ký hoạt động Realtime</span>
-          <small onclick="clearLogs()">Xóa hiển thị</small>
+      <!-- ================= TAB 3: THÀNH VIÊN & BẢO MẬT ================= -->
+      <div id="tabContentMembers" class="tab-content-section" style="display: none;">
+        <div class="feature-card">
+          <div class="card-title"><i class="fa-solid fa-id-card-clip"></i> Quản lý Face ID AI (Threshold 0.38)</div>
+          <div class="face-db-title" style="margin: 6px 0;">Chủ nhà duy nhất: <b id="ownerFaceLabel">Chưa thiết lập</b></div>
+          <div id="registeredFaceList" class="data-list-scroll"></div>
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button class="btn-admin good" style="flex: 1;" onclick="openFaceManagerModal()">
+              <i class="fa-solid fa-user-plus"></i> Thêm Mặt Mới
+            </button>
+            <button class="btn-admin" style="flex: 1;" onclick="requestChangeMasterPin()">
+              <i class="fa-solid fa-key"></i> Đổi PIN Nhà
+            </button>
+          </div>
         </div>
-        <div id="logList" class="log-list"></div>
+
+        <div class="feature-card">
+          <div class="card-title"><i class="fa-solid fa-users"></i> Tài khoản App đã đăng ký</div>
+          <div id="appUsersList" class="data-list-scroll"></div>
+        </div>
       </div>
+
     </div>
   </div>
 
-  <!-- ==========================================
-       MODAL 1: QUẢN LÝ & THÊM KHUÔN MẶT (YÊU CẦU DUYỆT BỞI CHỦ NHÀ)
-  =========================================== -->
+  <!-- MODALS -->
   <div id="faceManagerModal" class="modal-overlay" style="display: none;">
     <div class="modal-content wide">
       <div class="modal-header">
         <strong><i class="fa-solid fa-id-card-clip"></i> Quản Lý Face ID</strong>
         <span class="close-btn" onclick="closeFaceManagerModal()">&times;</span>
       </div>
-
-      <div class="face-db-box">
-        <div class="face-db-title">Chủ nhà duy nhất: <b id="ownerFaceLabel">Chưa thiết lập</b></div>
-        <div class="face-db-sub">Danh sách khuôn mặt đã đăng ký (<span id="faceCountText">0</span>):</div>
-        <div id="registeredFaceList" class="face-list-scroll"></div>
-      </div>
-
       <div id="faceMainActions" class="face-action-stack">
         <div id="noOwnerSection" class="owner-init-box" style="display: none;">
-          <p>Hệ thống chưa có <b>Chủ nhà</b>. Người đăng ký khuôn mặt đầu tiên sẽ trở thành <b>Chủ nhà duy nhất</b> (có quyền duyệt thêm người mới và đổi PIN nhà chung).</p>
+          <p>Chưa có <b>Chủ nhà</b>. Người đăng ký đầu tiên sẽ trở thành Chủ nhà duy nhất.</p>
           <button class="btn-auth-submit" onclick="startRegisterFirstOwnerFace()">
-            <i class="fa-solid fa-crown"></i> ĐĂNG KÝ FACE ID CHỦ NHÀ DUY NHẤT
+            <i class="fa-solid fa-crown"></i> ĐĂNG KÝ FACE ID CHỦ NHÀ
           </button>
         </div>
-
         <div id="hasOwnerSection" class="face-action-stack" style="display: none;">
           <button class="btn-auth-submit register" onclick="startAddMemberFaceWithOwnerVerify()">
-            <i class="fa-solid fa-user-shield"></i> Thêm Khuôn Mặt Mới (Cần Quét Mặt Chủ Nhà Duyệt)
+            <i class="fa-solid fa-user-shield"></i> Thêm Mặt Mới (Chủ nhà duyệt)
           </button>
           <button class="btn-auth-submit danger" onclick="startResetFacesWithOwnerVerify()">
-            <i class="fa-solid fa-rotate-right"></i> Xóa & Đặt Lại Chủ Nhà (Cần Quét Mặt Chủ Nhà)
+            <i class="fa-solid fa-rotate-right"></i> Xóa & Đặt Lại CSDL Face ID
           </button>
         </div>
       </div>
-
       <div id="faceStepAddNewSection" class="owner-verified-box" style="display: none;">
         <div class="verified-banner">
           <i class="fa-solid fa-circle-check"></i>
-          <span><b>Đã xác thực Face ID Chủ nhà!</b> Nhập tên người mới và cho người đó đứng trước Camera.</span>
+          <span><b>Đã xác thực Chủ nhà!</b> Nhập họ tên thành viên mới.</span>
         </div>
         <div class="form-group" style="text-align: left;">
-          <label>Tên người sở hữu khuôn mặt mới:</label>
-          <input type="text" id="newFacePersonName" placeholder="VD: Trần Thị B (Thành viên)" />
+          <label>Tên thành viên:</label>
+          <input type="text" id="newFacePersonName" placeholder="VD: Nguyễn Văn A" />
         </div>
-        <button class="btn-auth-submit" onclick="startScanNewPersonStep()">
-          <i class="fa-solid fa-camera"></i> ĐẾM NGƯỢC 3S & QUÉT MẶT NGƯỜI MỚI
-        </button>
+        <button class="btn-auth-submit" onclick="startScanNewPersonStep()">BẮT ĐẦU QUÉT MẶT</button>
       </div>
     </div>
   </div>
 
-  <!-- ==========================================
-       MODAL 2: CAMERA QUÉT FACE ID AI (THRESHOLD = 0.38)
-  =========================================== -->
   <div id="faceScannerModal" class="modal-overlay" style="display: none;">
     <div class="modal-content">
       <div class="modal-header">
         <strong id="scannerModalTitle">Nhận Diện Khuôn Mặt AI</strong>
         <span class="close-btn" onclick="cancelFaceScanner()">&times;</span>
       </div>
-
       <div class="cam-circle">
         <video id="webcamVideo" autoplay playsinline muted></video>
         <canvas id="faceOverlayCanvas"></canvas>
         <div class="scanline"></div>
       </div>
-
       <p id="scannerTargetText" class="scanner-sub">Đưa khuôn mặt vào khung tròn</p>
       <div class="scanner-status-box">
         <div id="scannerMsg" class="scanner-msg">Đang khởi tạo Camera...</div>
         <div id="scannerDistance" class="scanner-metric">Euclidean Distance: --- (Threshold: 0.38)</div>
       </div>
-
       <button class="btn-cancel-scan" onclick="cancelFaceScanner()">Hủy bỏ</button>
     </div>
   </div>
 
-  <!-- ==========================================
-       MODAL 3: BÀN PHÍM NHẬP MÃ PIN VÀO NHÀ CHUNG
-  =========================================== -->
   <div id="pinModal" class="modal-overlay" style="display: none;">
     <div class="modal-content">
       <div class="modal-header">
-        <strong id="pinUserDisplay">Nhập Mã PIN Nhà Chung</strong>
+        <strong>Nhập Mã PIN Nhà Chung</strong>
         <span class="close-btn" onclick="closePinModal()">&times;</span>
       </div>
       <div class="pin-display">
-        <div class="pin-dot"></div>
-        <div class="pin-dot"></div>
-        <div class="pin-dot"></div>
-        <div class="pin-dot"></div>
+        <div class="pin-dot"></div><div class="pin-dot"></div>
+        <div class="pin-dot"></div><div class="pin-dot"></div>
       </div>
       <div id="pinErrorText" class="error-text"></div>
       <div class="keypad">
-        <button onclick="pressNum('1')">1</button>
-        <button onclick="pressNum('2')">2</button>
-        <button onclick="pressNum('3')">3</button>
-        <button onclick="pressNum('4')">4</button>
-        <button onclick="pressNum('5')">5</button>
-        <button onclick="pressNum('6')">6</button>
-        <button onclick="pressNum('7')">7</button>
-        <button onclick="pressNum('8')">8</button>
-        <button onclick="pressNum('9')">9</button>
-        <button onclick="clearPin()">C</button>
-        <button onclick="pressNum('0')">0</button>
-        <button onclick="submitNum()"><i class="fa-solid fa-check"></i></button>
+        <button onclick="pressNum('1')">1</button><button onclick="pressNum('2')">2</button><button onclick="pressNum('3')">3</button>
+        <button onclick="pressNum('4')">4</button><button onclick="pressNum('5')">5</button><button onclick="pressNum('6')">6</button>
+        <button onclick="pressNum('7')">7</button><button onclick="pressNum('8')">8</button><button onclick="pressNum('9')">9</button>
+        <button onclick="clearPin()">C</button><button onclick="pressNum('0')">0</button><button onclick="submitNum()"><i class="fa-solid fa-check"></i></button>
       </div>
     </div>
   </div>
 
-  <!-- ==========================================
-       MODAL 4: ĐỔI MÃ PIN NHÀ CHUNG (SAU KHI XÁC THỰC MẶT CHỦ NHÀ)
-  =========================================== -->
   <div id="changePinModal" class="modal-overlay" style="display: none;">
     <div class="modal-content">
       <div class="modal-header">
-        <strong><i class="fa-solid fa-key"></i> Đổi Mã PIN Nhà Chung</strong>
+        <strong>Đổi Mã PIN Nhà Chung</strong>
         <span class="close-btn" onclick="closeChangePinModal()">&times;</span>
       </div>
-      <div class="verified-banner" style="margin-bottom: 12px;">
-        <i class="fa-solid fa-circle-check"></i>
-        <span>Đã xác thực Face ID Chủ nhà thành công!</span>
-      </div>
       <div class="form-group" style="text-align: left;">
-        <label>Nhập Mã PIN hiện tại (4 chữ số):</label>
+        <label>Mã PIN hiện tại:</label>
         <input type="password" id="oldMasterPinInput" maxlength="4" placeholder="••••" />
       </div>
       <div class="form-group" style="text-align: left; margin-top: 10px;">
-        <label>Nhập Mã PIN MỚI cho cả nhà (4 chữ số):</label>
+        <label>Mã PIN mới (4 số):</label>
         <input type="password" id="newMasterPinInput" maxlength="4" placeholder="••••" />
       </div>
       <div id="changePinError" class="error-text" style="margin-top: 8px;"></div>
-      <button class="btn-auth-submit" style="margin-top: 8px;" onclick="submitNewMasterPin()">
-        <i class="fa-solid fa-floppy-disk"></i> LƯU MÃ PIN MỚI LÊN FIREBASE
-      </button>
+      <button class="btn-auth-submit" style="margin-top: 8px;" onclick="submitNewMasterPin()">LƯU MÃ PIN MỚI</button>
     </div>
   </div>
 
-  <!-- ==========================================
-       MODAL 5: CẢNH BÁO AN NINH KHẨN CẤP
-  =========================================== -->
   <div id="securityAlertModal" class="modal-overlay alert-mode" style="display: none;">
     <div class="modal-content alert-box">
       <div class="alert-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
       <h2>CẢNH BÁO AN NINH!</h2>
-      <p id="alertModalMsg">Phát hiện hành vi nhập sai mật khẩu quá 3 lần!</p>
-      <button class="btn-dismiss-alert" onclick="dismissSecurityAlert()">
-        TẮT CÒI BÁO ĐỘNG & ĐÃ HIỂU
-      </button>
+      <p>Phát hiện nhập sai mật khẩu quá 3 lần!</p>
+      <button class="btn-dismiss-alert" onclick="dismissSecurityAlert()">TẮT CÒI BÁO ĐỘNG & ĐÃ HIỂU</button>
     </div>
   </div>
 
-  <!-- Thư viện Three.js, Face-API.js & Firebase v8 SDK (Kèm Firebase Auth) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-  <!-- Các file JS đã tách gọn -->
   <script src="js/door3d.js"></script>
   <script src="js/app.js"></script>
 </body>
